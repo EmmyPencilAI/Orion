@@ -18,7 +18,6 @@ export const ALL_SYMBOLS: SupportedSymbol[] = [
   'USDCAD',
 ];
 
-// Verified official Friday closing prices
 const VERIFIED_FRIDAY_CLOSES: Record<SupportedSymbol, number> = {
   XAUUSD: 4162.30,
   USDJPY: 157.830,
@@ -36,7 +35,7 @@ function createDefaultSignal(symbol: SupportedSymbol): ForexSignal {
     signal_id: `${symbol}-${Date.now()}`,
     symbol,
     direction: 'WAIT',
-    confidence: session.is_open ? 50 : 65,
+    confidence: 65,
     created_at: new Date().toISOString(),
     current_price: price,
     entry_zone: null,
@@ -45,21 +44,18 @@ function createDefaultSignal(symbol: SupportedSymbol): ForexSignal {
     take_profit_2: null,
     take_profit_3: null,
     risk_reward: null,
-    reason: session.is_open
-      ? ['Initializing market scanner...']
-      : [
-          'WEEKEND PAUSE: Forex markets closed until Sunday 5:00 PM EST (21:00 UTC)',
-          `Showing verified Friday official close (${price.toFixed(decimals)})`,
-          'Capital Protection: Holding in WAIT to prevent weekend gap risk',
-        ],
-    status: session.is_open ? 'NO_TRADE' : 'WEEKEND_PAUSE',
+    reason: [
+      'Scanning real market structure...',
+      `Verified Market Reference Price: ${price.toFixed(decimals)}`,
+    ],
+    status: session.is_open ? 'NO_TRADE' : 'WEEKEND_PREP',
     market_open: session.is_open,
     weekend_notice: session.message,
     friday_close: price,
   };
 }
 
-// In-memory latest state
+// In-memory state
 const state: ScannerState = {
   status: 'ok',
   scanner: 'running',
@@ -68,6 +64,7 @@ const state: ScannerState = {
   total_scans: 0,
   uptime_seconds: 0,
   market_session: getForexMarketSession(),
+  best_setup: null,
   symbols: {
     XAUUSD: createDefaultSignal('XAUUSD'),
     USDJPY: createDefaultSignal('USDJPY'),
@@ -93,7 +90,7 @@ function analyzeTimeframe(candles: Candle[], tf: 'M5' | 'M15' | 'H1'): {
     trend = 'BULLISH';
   } else if (currentPrice < indicators.ema50 && indicators.ema21 < indicators.ema50 && indicators.ema50 < indicators.ema200) {
     trend = 'BEARISH';
-  } else if (indicators.adx14 < 20) {
+  } else if (indicators.adx14 < 18) {
     trend = 'CHOPPY';
   } else if (currentPrice > indicators.ema50) {
     trend = 'BULLISH';
@@ -124,13 +121,11 @@ function analyzeTimeframe(candles: Candle[], tf: 'M5' | 'M15' | 'H1'): {
   const resistance = recentHighs.length > 0 ? Math.max(...recentHighs) : currentPrice + indicators.atr14 * 2;
   const support = recentLows.length > 0 ? Math.min(...recentLows) : currentPrice - indicators.atr14 * 2;
 
-  let structure = 'Neutral consolidation';
+  let structure = 'Consolidation';
   if (trend === 'BULLISH') {
-    structure = 'Higher Highs & Higher Lows (Bullish)';
+    structure = 'Higher Highs & Higher Lows';
   } else if (trend === 'BEARISH') {
-    structure = 'Lower Highs & Lower Lows (Bearish)';
-  } else if (trend === 'CHOPPY') {
-    structure = 'Range-bound / Consolidation';
+    structure = 'Lower Highs & Lower Lows';
   }
 
   const analysis: TimeframeAnalysis = {
@@ -155,14 +150,13 @@ export async function analyzeSymbol(symbol: SupportedSymbol): Promise<ForexSigna
   const signalId = `${symbol}-${Date.now()}`;
   const session = getForexMarketSession();
 
-  // Fetch real market data for M5, M15, H1
+  // Fetch real market candles across H1, M15, M5
   const [dataH1, dataM15, dataM5] = await Promise.all([
     fetchMarketCandles(symbol, 'H1'),
     fetchMarketCandles(symbol, 'M15'),
     fetchMarketCandles(symbol, 'M5'),
   ]);
 
-  // Use candles if available, else fall back to verified real close
   let currentPrice = VERIFIED_FRIDAY_CLOSES[symbol];
   if (dataM5 && dataM5.candles.length > 0) {
     currentPrice = dataM5.candles[dataM5.candles.length - 1].close;
@@ -183,12 +177,10 @@ export async function analyzeSymbol(symbol: SupportedSymbol): Promise<ForexSigna
       take_profit_3: null,
       risk_reward: null,
       reason: [
-        session.is_open
-          ? 'Synchronizing live feed...'
-          : 'WEEKEND PAUSE: Forex markets closed until Sunday 5:00 PM EST (21:00 UTC)',
-        `Verified Friday Closing Price: ${currentPrice.toFixed(decimals)}`,
+        'Real market data feed synchronizing...',
+        `Verified Friday Market Close: ${currentPrice.toFixed(decimals)}`,
       ],
-      status: session.is_open ? 'DATA_UNAVAILABLE' : 'WEEKEND_PAUSE',
+      status: session.is_open ? 'DATA_UNAVAILABLE' : 'WEEKEND_PREP',
       market_open: session.is_open,
       weekend_notice: session.message,
       friday_close: currentPrice,
@@ -217,67 +209,23 @@ export async function analyzeSymbol(symbol: SupportedSymbol): Promise<ForexSigna
     total: 0,
   };
 
-  // If weekend, strictly pause signals and report Friday close
-  if (!session.is_open) {
-    reasons.push('WEEKEND PAUSE: Forex markets closed until Sunday 5:00 PM EST (21:00 UTC)');
-    reasons.push(`Official Friday Market Close Price: ${currentPrice.toFixed(decimals)}`);
-    reasons.push('Capital Protection: Signal strictly held in WAIT to prevent weekend gap risk');
-    reasons.push(`Friday Structural Close: H1 ${h1.analysis.trend} • M15 ${m15.analysis.trend}`);
-
-    return {
-      signal_id: signalId,
-      symbol,
-      direction: 'WAIT',
-      confidence: 70,
-      created_at: new Date().toISOString(),
-      current_price: currentPrice,
-      entry_zone: null,
-      stop_loss: null,
-      take_profit_1: null,
-      take_profit_2: null,
-      take_profit_3: null,
-      risk_reward: null,
-      reason: reasons,
-      status: 'WEEKEND_PAUSE',
-      market_open: false,
-      weekend_notice: session.message,
-      friday_close: currentPrice,
-      score_breakdown: {
-        h1_trend: 15,
-        m15_confirmation: 15,
-        m5_setup: 10,
-        ema_structure: 10,
-        momentum: 10,
-        rsi_macd: 5,
-        support_resistance: 5,
-        volatility: 0,
-        total: 70,
-      },
-      mtf_analysis: {
-        h1: h1.analysis,
-        m15: m15.analysis,
-        m5: m5.analysis,
-      },
-      indicators: m5Ind,
-    };
-  }
-
-  // Active Market Session Analysis
+  // 1. Macro Trend from H1
   let tentativeDirection: 'BUY' | 'SELL' | 'WAIT' = 'WAIT';
   if (h1.analysis.trend === 'BULLISH') {
     tentativeDirection = 'BUY';
-    scoreBreakdown.h1_trend = 20;
+    scoreBreakdown.h1_trend = 22;
     reasons.push('H1 macro bullish trend established');
   } else if (h1.analysis.trend === 'BEARISH') {
     tentativeDirection = 'SELL';
-    scoreBreakdown.h1_trend = 20;
+    scoreBreakdown.h1_trend = 22;
     reasons.push('H1 macro bearish trend established');
   } else {
     tentativeDirection = 'WAIT';
-    scoreBreakdown.h1_trend = 6;
+    scoreBreakdown.h1_trend = 8;
     reasons.push('H1 trend neutral or consolidating');
   }
 
+  // 2. M15 Confirmation
   if (tentativeDirection === 'BUY') {
     if (m15.analysis.trend === 'BULLISH' && m15.analysis.momentum !== 'NEGATIVE') {
       scoreBreakdown.m15_confirmation = 20;
@@ -286,8 +234,8 @@ export async function analyzeSymbol(symbol: SupportedSymbol): Promise<ForexSigna
       scoreBreakdown.m15_confirmation = 12;
       reasons.push('M15 trend bullish but momentum slowing');
     } else {
-      scoreBreakdown.m15_confirmation = 0;
-      reasons.push('M15 market structure conflicts with H1');
+      scoreBreakdown.m15_confirmation = 4;
+      reasons.push('M15 market structure pulling back');
     }
   } else if (tentativeDirection === 'SELL') {
     if (m15.analysis.trend === 'BEARISH' && m15.analysis.momentum !== 'POSITIVE') {
@@ -297,129 +245,121 @@ export async function analyzeSymbol(symbol: SupportedSymbol): Promise<ForexSigna
       scoreBreakdown.m15_confirmation = 12;
       reasons.push('M15 trend bearish but momentum slowing');
     } else {
-      scoreBreakdown.m15_confirmation = 0;
-      reasons.push('M15 market structure conflicts with H1');
+      scoreBreakdown.m15_confirmation = 4;
+      reasons.push('M15 market structure pulling back');
     }
   }
 
+  // 3. M5 Setup Trigger
   const isPullbackBuy =
     currentPrice >= m5Ind.ema21 - 0.7 * atr &&
-    currentPrice <= m5Ind.ema9 + 0.3 * atr &&
-    lastCandle.close >= lastCandle.open;
+    currentPrice <= m5Ind.ema9 + 0.3 * atr;
 
   const isPullbackSell =
     currentPrice <= m5Ind.ema21 + 0.7 * atr &&
-    currentPrice >= m5Ind.ema9 - 0.3 * atr &&
-    lastCandle.close <= lastCandle.open;
+    currentPrice >= m5Ind.ema9 - 0.3 * atr;
 
-  const isBreakoutBuy =
-    currentPrice > m5.analysis.keyLevels.resistance &&
-    lastCandle.close > lastCandle.open;
-
-  const isBreakoutSell =
-    currentPrice < m5.analysis.keyLevels.support &&
-    lastCandle.close < lastCandle.open;
+  const isBreakoutBuy = currentPrice > m5.analysis.keyLevels.resistance;
+  const isBreakoutSell = currentPrice < m5.analysis.keyLevels.support;
 
   if (tentativeDirection === 'BUY') {
     if (isPullbackBuy) {
       scoreBreakdown.m5_setup = 20;
-      reasons.push('M5 confirmed pullback to EMA dynamic support');
+      reasons.push('M5 pullback to EMA dynamic support zone');
     } else if (isBreakoutBuy) {
       scoreBreakdown.m5_setup = 18;
-      reasons.push('M5 breakout confirmation above resistance');
+      reasons.push('M5 breakout above resistance');
     } else if (m5.analysis.trend === 'BULLISH') {
-      scoreBreakdown.m5_setup = 10;
-      reasons.push('M5 bullish structure awaiting clean pullback entry');
+      scoreBreakdown.m5_setup = 12;
+      reasons.push('M5 structure bullish');
     } else {
-      scoreBreakdown.m5_setup = 4;
-      reasons.push('M5 has no confirmed entry setup');
+      scoreBreakdown.m5_setup = 6;
+      reasons.push('M5 awaiting clean structure setup');
     }
   } else if (tentativeDirection === 'SELL') {
     if (isPullbackSell) {
       scoreBreakdown.m5_setup = 20;
-      reasons.push('M5 confirmed pullback to EMA dynamic resistance');
+      reasons.push('M5 pullback to EMA dynamic resistance zone');
     } else if (isBreakoutSell) {
       scoreBreakdown.m5_setup = 18;
-      reasons.push('M5 breakdown confirmation below support');
+      reasons.push('M5 breakdown below support');
     } else if (m5.analysis.trend === 'BEARISH') {
-      scoreBreakdown.m5_setup = 10;
-      reasons.push('M5 bearish structure awaiting clean pullback entry');
+      scoreBreakdown.m5_setup = 12;
+      reasons.push('M5 structure bearish');
     } else {
-      scoreBreakdown.m5_setup = 4;
-      reasons.push('M5 has no confirmed entry setup');
+      scoreBreakdown.m5_setup = 6;
+      reasons.push('M5 awaiting clean structure setup');
     }
   }
 
+  // 4. EMA Ribbon Structure
   if (tentativeDirection === 'BUY') {
     if (m5Ind.ema9 > m5Ind.ema21 && m5Ind.ema21 > m5Ind.ema50 && m5Ind.ema50 > m5Ind.ema200) {
-      scoreBreakdown.ema_structure = 10;
+      scoreBreakdown.ema_structure = 12;
       reasons.push('EMA 9/21/50/200 fully aligned bullish');
     } else if (m5Ind.ema9 > m5Ind.ema21 && m5Ind.ema21 > m5Ind.ema50) {
-      scoreBreakdown.ema_structure = 8;
+      scoreBreakdown.ema_structure = 9;
       reasons.push('Fast EMA alignment bullish');
     } else {
-      scoreBreakdown.ema_structure = 3;
+      scoreBreakdown.ema_structure = 4;
     }
   } else if (tentativeDirection === 'SELL') {
     if (m5Ind.ema9 < m5Ind.ema21 && m5Ind.ema21 < m5Ind.ema50 && m5Ind.ema50 < m5Ind.ema200) {
-      scoreBreakdown.ema_structure = 10;
+      scoreBreakdown.ema_structure = 12;
       reasons.push('EMA 9/21/50/200 fully aligned bearish');
     } else if (m5Ind.ema9 < m5Ind.ema21 && m5Ind.ema21 < m5Ind.ema50) {
-      scoreBreakdown.ema_structure = 8;
+      scoreBreakdown.ema_structure = 9;
       reasons.push('Fast EMA alignment bearish');
     } else {
-      scoreBreakdown.ema_structure = 3;
+      scoreBreakdown.ema_structure = 4;
     }
   }
 
+  // 5. Momentum & MACD
   if (tentativeDirection === 'BUY') {
     if (m5Ind.macd.histogram > 0 && m5Ind.macd.macdLine > m5Ind.macd.signalLine) {
       scoreBreakdown.momentum = 10;
-      reasons.push('MACD positive momentum expansion');
+      reasons.push('MACD positive expansion');
     } else if (m5Ind.macd.histogram > 0) {
-      scoreBreakdown.momentum = 6;
+      scoreBreakdown.momentum = 7;
     } else {
-      scoreBreakdown.momentum = 2;
-      reasons.push('MACD momentum lagging or negative');
+      scoreBreakdown.momentum = 3;
     }
   } else if (tentativeDirection === 'SELL') {
     if (m5Ind.macd.histogram < 0 && m5Ind.macd.macdLine < m5Ind.macd.signalLine) {
       scoreBreakdown.momentum = 10;
-      reasons.push('MACD negative momentum expansion');
+      reasons.push('MACD negative expansion');
     } else if (m5Ind.macd.histogram < 0) {
-      scoreBreakdown.momentum = 6;
+      scoreBreakdown.momentum = 7;
     } else {
-      scoreBreakdown.momentum = 2;
-      reasons.push('MACD momentum lagging or positive');
+      scoreBreakdown.momentum = 3;
     }
   }
 
+  // 6. RSI
   if (tentativeDirection === 'BUY') {
-    if (m5Ind.rsi14 >= 50 && m5Ind.rsi14 <= 68) {
+    if (m5Ind.rsi14 >= 46 && m5Ind.rsi14 <= 66) {
       scoreBreakdown.rsi_macd = 10;
-      reasons.push(`RSI (${m5Ind.rsi14}) in optimal expansion zone`);
-    } else if (m5Ind.rsi14 > 72) {
-      scoreBreakdown.rsi_macd = 3;
-      reasons.push(`RSI (${m5Ind.rsi14}) extended near overbought`);
-    } else if (m5Ind.rsi14 >= 42) {
-      scoreBreakdown.rsi_macd = 6;
+      reasons.push(`RSI (${m5Ind.rsi14}) optimal bullish expansion zone`);
+    } else if (m5Ind.rsi14 > 70) {
+      scoreBreakdown.rsi_macd = 4;
+      reasons.push(`RSI (${m5Ind.rsi14}) approaching overbought`);
     } else {
-      scoreBreakdown.rsi_macd = 2;
+      scoreBreakdown.rsi_macd = 5;
     }
   } else if (tentativeDirection === 'SELL') {
-    if (m5Ind.rsi14 <= 50 && m5Ind.rsi14 >= 32) {
+    if (m5Ind.rsi14 <= 54 && m5Ind.rsi14 >= 34) {
       scoreBreakdown.rsi_macd = 10;
-      reasons.push(`RSI (${m5Ind.rsi14}) in optimal contraction zone`);
-    } else if (m5Ind.rsi14 < 28) {
-      scoreBreakdown.rsi_macd = 3;
-      reasons.push(`RSI (${m5Ind.rsi14}) extended near oversold`);
-    } else if (m5Ind.rsi14 <= 58) {
-      scoreBreakdown.rsi_macd = 6;
+      reasons.push(`RSI (${m5Ind.rsi14}) optimal bearish contraction zone`);
+    } else if (m5Ind.rsi14 < 30) {
+      scoreBreakdown.rsi_macd = 4;
+      reasons.push(`RSI (${m5Ind.rsi14}) approaching oversold`);
     } else {
-      scoreBreakdown.rsi_macd = 2;
+      scoreBreakdown.rsi_macd = 5;
     }
   }
 
+  // 7. Volatility & Support/Resistance
   const recentLows = m5.swingLows.filter((l) => l < currentPrice);
   const recentHighs = m5.swingHighs.filter((h) => h > currentPrice);
   const nearestSupport = recentLows.length > 0 ? Math.max(...recentLows) : currentPrice - atr * 1.5;
@@ -427,33 +367,14 @@ export async function analyzeSymbol(symbol: SupportedSymbol): Promise<ForexSigna
 
   if (tentativeDirection === 'BUY') {
     const room = nearestResistance - currentPrice;
-    if (room >= atr * 1.5) {
-      scoreBreakdown.support_resistance = 5;
-      reasons.push('Ample room to major resistance');
-    } else {
-      scoreBreakdown.support_resistance = 1;
-      reasons.push('Immediate resistance limits upside');
-    }
+    scoreBreakdown.support_resistance = room >= atr ? 6 : 2;
   } else if (tentativeDirection === 'SELL') {
     const room = currentPrice - nearestSupport;
-    if (room >= atr * 1.5) {
-      scoreBreakdown.support_resistance = 5;
-      reasons.push('Ample room to major support');
-    } else {
-      scoreBreakdown.support_resistance = 1;
-      reasons.push('Immediate support limits downside');
-    }
+    scoreBreakdown.support_resistance = room >= atr ? 6 : 2;
   }
 
-  if (m5Ind.adx14 >= 22) {
-    scoreBreakdown.volatility = 5;
-    reasons.push(`ADX (${m5Ind.adx14}) confirms active trend strength`);
-  } else if (m5Ind.adx14 >= 18) {
-    scoreBreakdown.volatility = 3;
-  } else {
-    scoreBreakdown.volatility = 1;
-    reasons.push(`ADX (${m5Ind.adx14}) indicates weak trend strength`);
-  }
+  // ADX trend strength
+  scoreBreakdown.volatility = m5Ind.adx14 >= 18 ? 5 : 2;
 
   const totalScore = Math.min(
     100,
@@ -468,34 +389,25 @@ export async function analyzeSymbol(symbol: SupportedSymbol): Promise<ForexSigna
   );
   scoreBreakdown.total = totalScore;
 
-  const distFromEma21 = Math.abs(currentPrice - m5Ind.ema21);
-  const isOverextended = distFromEma21 > 2.8 * atr;
+  let finalDirection: 'BUY' | 'SELL' | 'WAIT' = tentativeDirection;
+  let status: 'VALID' | 'STRONG' | 'WATCH' | 'NO_TRADE' | 'WEEKEND_PREP' = 'NO_TRADE';
 
-  let finalDirection: 'BUY' | 'SELL' | 'WAIT' = 'WAIT';
-  let status: 'VALID' | 'STRONG' | 'WATCH' | 'NO_TRADE' | 'ENTRY_MISSED' = 'NO_TRADE';
-
-  if (isOverextended) {
-    finalDirection = 'WAIT';
-    status = 'ENTRY_MISSED';
-    reasons.unshift('ENTRY MISSED / PRICE EXTENDED (> 2.8x ATR from EMA21)');
-  } else if (totalScore >= 85 && (tentativeDirection === 'BUY' || tentativeDirection === 'SELL')) {
-    finalDirection = tentativeDirection;
+  if (!session.is_open) {
+    status = 'WEEKEND_PREP';
+    reasons.unshift(`Weekend Prep: Setup analyzed from official Friday market close (${currentPrice.toFixed(decimals)})`);
+  } else if (totalScore >= 80) {
     status = 'STRONG';
     reasons.unshift('High-conviction confluence across H1, M15, and M5');
-  } else if (totalScore >= 75 && (tentativeDirection === 'BUY' || tentativeDirection === 'SELL')) {
-    finalDirection = tentativeDirection;
+  } else if (totalScore >= 70) {
     status = 'VALID';
-    reasons.unshift('Valid technical setup with acceptable risk/reward');
-  } else if (totalScore >= 60) {
-    finalDirection = 'WAIT';
-    status = 'WATCH';
-    reasons.unshift('Setup developing on watchlist (awaiting confirmation)');
+    reasons.unshift('Valid technical setup meeting risk/reward criteria');
   } else {
     finalDirection = 'WAIT';
-    status = 'NO_TRADE';
-    reasons.unshift('Timeframes disagree or setup insufficient (WAIT)');
+    status = 'WATCH';
+    reasons.unshift('Market structure consolidating; awaiting trigger');
   }
 
+  // Calculate dynamic Entry, Stop Loss, and TP levels
   let entryZone = null;
   let stopLoss = null;
   let tp1 = null;
@@ -503,7 +415,7 @@ export async function analyzeSymbol(symbol: SupportedSymbol): Promise<ForexSigna
   let tp3 = null;
   let riskReward = null;
 
-  if (finalDirection === 'BUY' || (status === 'WATCH' && tentativeDirection === 'BUY')) {
+  if (finalDirection === 'BUY' || tentativeDirection === 'BUY') {
     const entryMin = currentPrice - 0.25 * atr;
     const entryMax = currentPrice + 0.15 * atr;
     entryZone = {
@@ -527,7 +439,7 @@ export async function analyzeSymbol(symbol: SupportedSymbol): Promise<ForexSigna
         tp3: '1:4.0',
       };
     }
-  } else if (finalDirection === 'SELL' || (status === 'WATCH' && tentativeDirection === 'SELL')) {
+  } else if (finalDirection === 'SELL' || tentativeDirection === 'SELL') {
     const entryMin = currentPrice - 0.15 * atr;
     const entryMax = currentPrice + 0.25 * atr;
     entryZone = {
@@ -568,8 +480,8 @@ export async function analyzeSymbol(symbol: SupportedSymbol): Promise<ForexSigna
     risk_reward: riskReward,
     reason: reasons,
     status,
-    market_open: true,
-    weekend_notice: undefined,
+    market_open: session.is_open,
+    weekend_notice: session.is_open ? undefined : session.message,
     friday_close: currentPrice,
     score_breakdown: scoreBreakdown,
     mtf_analysis: {
@@ -596,8 +508,27 @@ export async function runScan(): Promise<void> {
       ALL_SYMBOLS.map((sym) => analyzeSymbol(sym))
     );
 
+    // Find the #1 Best Setup across all 5 pairs
+    let topScore = -1;
+    let topSignal: ForexSignal | null = null;
+
     for (const res of results) {
       state.symbols[res.symbol] = res;
+      if (res.direction !== 'WAIT' && res.confidence > topScore) {
+        topScore = res.confidence;
+        topSignal = res;
+      }
+    }
+
+    if (!topSignal && results.length > 0) {
+      // Pick highest score among watchlist
+      topSignal = [...results].sort((a, b) => b.confidence - a.confidence)[0];
+    }
+
+    if (topSignal) {
+      topSignal.is_best_setup = true;
+      state.best_setup = topSignal;
+      state.symbols[topSignal.symbol] = { ...topSignal, is_best_setup: true };
     }
 
     state.last_scan_at = new Date().toISOString();

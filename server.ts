@@ -19,6 +19,8 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 const isProduction = process.env.NODE_ENV === 'production';
+const distPath = path.join(__dirname, 'dist');
+const hasDist = fs.existsSync(path.join(distPath, 'index.html'));
 
 app.use(express.json());
 
@@ -37,7 +39,7 @@ app.use((req, res, next) => {
 startBackgroundScanner();
 
 // ----------------------------------------------------
-// MANDATORY API ENDPOINTS
+// API ENDPOINTS
 // ----------------------------------------------------
 
 /**
@@ -87,66 +89,59 @@ app.get('/signals/:symbol', (req: Request, res: Response) => {
   res.json(signal);
 });
 
+// Best setup endpoint
+app.get('/api/best-setup', (_req: Request, res: Response) => {
+  const state = getScannerState();
+  res.json(state.best_setup || null);
+});
+
 // Status helper for UI dashboard
 app.get('/api/status', (_req: Request, res: Response) => {
   res.json(getScannerState());
 });
 
-// Manual scan trigger (for testing / manual refresh)
+// Manual scan trigger
 app.post('/api/scan-now', async (_req: Request, res: Response) => {
   await runScan();
   res.json({ status: 'ok', message: 'Scan completed', data: getAllSignals() });
 });
 
-// Raw file viewer/download endpoint for Render deployment files
-app.get('/api/raw/:filename', (req: Request, res: Response) => {
-  const allowedFiles = [
-    'main.py',
-    'scanner.py',
-    'indicators.py',
-    'data_provider.py',
-    'requirements.txt',
-    'render.yaml',
-    'Procfile',
-    'README.md',
-  ];
-  const filename = req.params.filename;
-  if (!allowedFiles.includes(filename)) {
-    return res.status(404).send('File not found');
-  }
-
-  const filePath = path.join(__dirname, filename);
-  if (fs.existsSync(filePath)) {
-    res.setHeader('Content-Type', 'text/plain');
-    return res.sendFile(filePath);
-  }
-  return res.status(404).send('File not created yet');
-});
-
 // ----------------------------------------------------
-// VITE / STATIC SERVING
+// VITE / STATIC SERVING (NODE.JS WEB SERVICE)
 // ----------------------------------------------------
-async function setupVite() {
-  if (!isProduction) {
+async function startServer() {
+  if (isProduction || hasDist) {
+    console.log(`[ORION MT5] Serving compiled production client from: ${distPath}`);
+    app.use(express.static(distPath));
+
+    // Client-side routing fallback: serve index.html for non-API routes
+    app.get('*', (req: Request, res: Response, next) => {
+      if (
+        req.path.startsWith('/api') ||
+        req.path.startsWith('/signals') ||
+        req.path.startsWith('/health') ||
+        req.path.startsWith('/market-status')
+      ) {
+        return next();
+      }
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+  } else {
+    // Development mode with Vite middleware
+    console.log(`[ORION MT5] Mounting Vite development middleware`);
     const { createServer } = await import('vite');
     const vite = await createServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(__dirname, 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (_req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[ORION MT5 Signal Bot] Server running on http://0.0.0.0:${PORT}`);
+    console.log(`[ORION MT5 Signal Bot] Node web service running on http://0.0.0.0:${PORT}`);
   });
 }
 
-setupVite().catch((err) => {
+startServer().catch((err) => {
   console.error('[ORION MT5 Signal Bot] Failed to start server:', err);
 });

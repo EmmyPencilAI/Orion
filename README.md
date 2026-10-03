@@ -1,83 +1,78 @@
 # ORION MT5 — INSTITUTIONAL FOREX & GOLD SIGNAL ENGINE
-### Real-Time 5-Pair Multi-Timeframe Scanner + MT5 Lot Sizer Helper
+### Full-Stack Node.js Web Service + Real-Time Multi-Timeframe Scanner
 
-**ORION MT5** is a production-quality, real-time Forex and Gold signal application built for **XAUUSD**, **USDJPY**, **EURUSD**, **GBPUSD**, and **USDCAD**.
+**ORION MT5** is a production-quality, real-time Forex and Gold signal web application built for **XAUUSD**, **USDJPY**, **EURUSD**, **GBPUSD**, and **USDCAD**.
 
-It is styled in an institutional **Orange & White** terminal aesthetic featuring **Orbitron** typography, designed for Android and mobile browsers with an autonomous Python/FastAPI backend on Render.
+It features an institutional **Orange & White** terminal aesthetic with **Orbitron** typography, automated multi-timeframe candle scanning, and precision MT5 lot sizing down to 0.01 micro-lots.
+
+---
+
+## 🚀 How to Deploy on Render as a Node Web Service
+
+When deploying on Render, configure it as a **Node** environment so that accessing your URL (e.g. `https://orion-ye9g.onrender.com/`) opens the complete **Orange & White Web Interface**, while all background scanning and API routes continue running 24/7.
+
+### Render Settings:
+
+| Setting | Value |
+|---|---|
+| **Environment** | `Node` |
+| **Build Command** | `npm install && npm run build` |
+| **Start Command** | `npm start` |
+| **Health Check Path** | `/health` |
+| **Auto-Deploy** | `Yes` |
+
+### Environment Variables on Render:
+- `NODE_VERSION`: `20`
+- `NODE_ENV`: `production`
 
 ---
 
 ## ⚡ What Makes It Real
 
 1. **Real-Time Market Data Feeds (No Fake Prices)**:
-   - Continuously scans live tick & candle data for 5 instruments:
-     - **XAUUSD** (Spot Gold / USD)
-     - **USDJPY** (US Dollar / Japanese Yen)
-     - **EURUSD** (Euro / US Dollar)
-     - **GBPUSD** (British Pound / US Dollar)
-     - **USDCAD** (US Dollar / Canadian Dollar)
-   - Multi-timeframe analysis across **H1** (macro trend), **M15** (structure confirmation), and **M5** (entry trigger).
+   - Scans actual OHLC candle feeds for all 5 pairs:
+     - **XAUUSD** (Spot Gold / USD) — 2 decimals
+     - **USDJPY** (US Dollar / Japanese Yen) — 3 decimals
+     - **EURUSD** (Euro / US Dollar) — 5 decimals
+     - **GBPUSD** (British Pound / US Dollar) — 5 decimals
+     - **USDCAD** (US Dollar / Canadian Dollar) — 5 decimals
 
-2. **Deterministic Mathematical Signals**:
-   - Zero LLM / Zero AI guesses. Pure Wilder-smoothed technical math:
-     - EMA Ribbon: EMA 9, 21, 50, 200
-     - Wilder RSI 14 & MACD (12, 26, 9)
-     - ADX 14 (Trend conviction) & ATR 14 (True volatility)
-     - Dynamic Stop Loss (based on structural swing highs/lows + ATR buffer)
-     - Multi-tier Take Profits: TP1 (1:1.5 R:R), TP2 (1:2.5 R:R), TP3 (1:4.0 R:R)
-   - Strict `WAIT` enforcement: Protects capital when market is in chop, conflicting timeframes, or overextended.
+2. **Top Confluence Setup Detection**:
+   - Compares all 5 instruments across **H1**, **M15**, and **M5** timeframes.
+   - Highlights the highest-conviction setup (e.g. `USDJPY BUY 91%`, `GBPUSD BUY 86%`, or `XAUUSD SELL 85%`).
+   - Generates exact **Calculated Entry Range**, **Stop Loss**, and **Take Profit** levels (TP1 1:1.5, TP2 1:2.5, TP3 1:4.0).
 
-3. **MT5 Lot Size Helper with 0.01 Micro-Lot Sizing**:
-   - Designed for small accounts ($50, $100, $250, $500, $1,000, $5,000 or custom balance).
-   - Starts at **0.01** minimum micro-lot with interactive `+0.01` and `-0.01` incremental adjustments.
-   - Dual modes:
-     - **Auto Risk %**: Calculates the exact lot size so you never exceed your chosen risk (e.g. 1% or 2%).
-     - **Manual Lot Control**: User selects 0.01, 0.02, 0.05, etc., and the app calculates the exact dollar risk on Stop Loss and dollar reward on TP1/TP2/TP3.
-   - 1-tap **Copy MT5 Order Ticket** formatted with entry, SL, TP, and exact lot size.
+3. **Forex Weekend Schedule Awareness**:
+   - Global Forex markets close Friday at 21:00 UTC (5 PM EST) and reopen Sunday at 21:00 UTC (5 PM EST).
+   - On weekends, the scanner performs **Pre-Market Prep Analysis** on the official Friday closing candles.
+   - Computes prime actionable setups and entry/exit targets ready for the Sunday market open, while clearly notifying traders to prevent weekend gap risk.
 
-4. **Institutional Orange & White Aesthetic**:
-   - Palette: High-visibility orange (`#FF6B00`), pure white (`#FFFFFF`), deep matte carbon (`#07070A`, `#13131A`).
-   - High-precision typography: **Orbitron** font for prices, lot sizes, timers, and confidence meters.
+4. **MT5 Lot Sizer with 0.01 Micro-Lot Support**:
+   - Tailored for small accounts: `$50`, `$100`, `$250`, `$500`, `$1,000`, `$2,500` or custom equity.
+   - Manual `+0.01` and `-0.01` step adjustments.
+   - Real dollar calculation: shows exact dollar risk on Stop Loss (e.g. `-$3.75`) and dollar profit on TP1, TP2, and TP3.
 
 ---
 
 ## 📡 REST API Endpoints
 
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/health` | Keep-alive check for external 5-min cron. Returns `{"status":"ok","scanner":"running"}`. |
-| `GET` | `/signals` | Returns latest in-memory analysis for all 5 pairs. |
-| `GET` | `/signals/XAUUSD` | Returns latest analysis for Gold. |
-| `GET` | `/signals/USDJPY` | Returns latest analysis for USDJPY. |
-| `GET` | `/signals/EURUSD` | Returns latest analysis for EURUSD. |
-| `GET` | `/signals/GBPUSD` | Returns latest analysis for GBPUSD. |
-| `GET` | `/signals/USDCAD` | Returns latest analysis for USDCAD. |
+- `GET /`: Serves the complete Orange & White React Web Application.
+- `GET /health`: Keep-alive check for external cron. Returns `{"status":"ok","scanner":"running",...}`.
+- `GET /market-status`: Forex session status and hours until Sunday open.
+- `GET /signals`: Latest signals for all 5 instruments.
+- `GET /signals/:symbol`: Analysis for specified symbol (`XAUUSD`, `USDJPY`, `EURUSD`, `GBPUSD`, `USDCAD`).
+- `GET /api/best-setup`: The #1 highest-conviction setup across all pairs.
+- `POST /api/scan-now`: Trigger instant re-scan.
 
 ---
 
-## 📱 Android Packaging via Capacitor
+## ⏰ Keep-Alive Cron Setup (Free Tier 24/7)
 
-```bash
-# 1. Build web bundle
-npm run build
-
-# 2. Add Android platform (first time)
-npx cap add android
-
-# 3. Sync web assets into Android project
-npx cap sync
-
-# 4. Open in Android Studio to build APK
-npx cap open android
-```
-
----
-
-## ☁️ Render Deployment
-
-1. Push files to GitHub (`main.py`, `scanner.py`, `indicators.py`, `data_provider.py`, `requirements.txt`, `render.yaml`, `Procfile`).
-2. Deploy to Render with Start Command:
-   ```bash
-   uvicorn main:app --host 0.0.0.0 --port $PORT
+To keep your Render service active 24/7 on the free tier:
+1. Go to [Cron-Job.org](https://cron-job.org).
+2. Create a cron job running every 5 minutes (`*/5 * * * *`).
+3. Set the target URL:
    ```
-3. Set external cron on Cron-Job.org to ping `https://<your-render-app>.onrender.com/health` every 5 minutes (`*/5 * * * *`).
+   https://orion-ye9g.onrender.com/health
+   ```
+This pings `/health` without consuming heavy scan resources and keeps the web service online.

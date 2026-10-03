@@ -18,7 +18,8 @@ export type SignalStatus =
   | 'NO_TRADE'
   | 'DATA_UNAVAILABLE'
   | 'ENTRY_MISSED'
-  | 'WEEKEND_PAUSE';
+  | 'WEEKEND_PAUSE'
+  | 'WEEKEND_PREP';
 
 export type SupportedSymbol = 'XAUUSD' | 'USDJPY' | 'EURUSD' | 'GBPUSD' | 'USDCAD';
 
@@ -90,6 +91,7 @@ export interface ForexSignal {
   market_open?: boolean;
   weekend_notice?: string;
   friday_close?: number;
+  is_best_setup?: boolean;
   score_breakdown?: {
     h1_trend: number;
     m15_confirmation: number;
@@ -125,5 +127,6 @@ export interface ScannerState {
   total_scans: number;
   uptime_seconds: number;
   market_session: MarketSessionInfo;
+  best_setup?: ForexSignal | null;
   symbols: Record<SupportedSymbol, ForexSignal>;
 }

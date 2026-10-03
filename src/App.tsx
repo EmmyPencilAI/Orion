@@ -12,6 +12,7 @@ import {
   Compass,
   Copy,
   ExternalLink,
+  Flame,
   Info,
   Layers,
   Moon,
@@ -22,6 +23,8 @@ import {
   Sliders,
   Smartphone,
   Sparkles,
+  Star,
+  Target,
   TrendingDown,
   TrendingUp,
   Zap,
@@ -41,11 +44,11 @@ import {
 import { ALL_SYMBOLS } from './services/scanner';
 
 const SYMBOL_LABELS: Record<SupportedSymbol, { name: string; tag: string; icon: string }> = {
-  XAUUSD: { name: 'Spot Gold / USD', tag: 'GOLD', icon: 'AU' },
-  USDJPY: { name: 'US Dollar / Yen', tag: 'FOREX', icon: '¥' },
-  EURUSD: { name: 'Euro / US Dollar', tag: 'FOREX', icon: '€' },
-  GBPUSD: { name: 'British Pound / USD', tag: 'FOREX', icon: '£' },
-  USDCAD: { name: 'US Dollar / Canadian', tag: 'FOREX', icon: 'C$' },
+  XAUUSD: { name: 'Spot Gold / USD', tag: 'COMMODITY', icon: 'AU' },
+  USDJPY: { name: 'US Dollar / Yen', tag: 'MAJOR FOREX', icon: '¥' },
+  EURUSD: { name: 'Euro / US Dollar', tag: 'MAJOR FOREX', icon: '€' },
+  GBPUSD: { name: 'British Pound / USD', tag: 'MAJOR FOREX', icon: '£' },
+  USDCAD: { name: 'US Dollar / Canadian', tag: 'MAJOR FOREX', icon: 'C$' },
 };
 
 export default function App() {
@@ -78,7 +81,7 @@ export default function App() {
         setScannerState(data);
         setBackendStatus('online');
 
-        if (preferences.notificationsEnabled && data?.symbols && data.market_session.is_open) {
+        if (preferences.notificationsEnabled && data?.symbols) {
           for (const sym of ALL_SYMBOLS) {
             const sig = data.symbols[sym];
             if (sig && sig.direction !== 'WAIT' && sig.confidence >= preferences.minConfidence) {
@@ -111,7 +114,7 @@ export default function App() {
       const base = getApiBase();
       await fetch(`${base}/api/scan-now`, { method: 'POST' });
       await fetchSignals();
-      showToast('Market quotes refreshed');
+      showToast('Market scan updated');
     } catch {
       showToast('Could not reach backend');
     } finally {
@@ -148,11 +151,11 @@ export default function App() {
   }, [scannerState]);
 
   const isMarketOpen = scannerState?.market_session?.is_open ?? false;
+  const bestSetup = scannerState?.best_setup;
 
   const actionableCount = useMemo(() => {
-    if (!isMarketOpen) return 0;
-    return allSignalsList.filter((s) => s.direction !== 'WAIT' && s.confidence >= 75).length;
-  }, [allSignalsList, isMarketOpen]);
+    return allSignalsList.filter((s) => s.direction !== 'WAIT' && s.confidence >= 70).length;
+  }, [allSignalsList]);
 
   const filteredSignals = useMemo(() => {
     if (signalFilter === 'actionable') {
@@ -197,18 +200,16 @@ export default function App() {
               <div className="flex items-center gap-1.5 text-[10px] text-[#B6B4C2]">
                 <span
                   className={`w-1.5 h-1.5 rounded-full ${
-                    !isMarketOpen
-                      ? 'bg-[#FF9500]'
-                      : backendStatus === 'online'
+                    backendStatus === 'online'
                       ? 'bg-[#10B981] animate-pulse'
                       : 'bg-rose-500'
                   }`}
                 />
                 <span className="font-mono">
-                  {!isMarketOpen
-                    ? 'WEEKEND PAUSE • REAL FRIDAY CLOSE'
-                    : backendStatus === 'online'
-                    ? 'REAL-TIME 60s ENGINE'
+                  {backendStatus === 'online'
+                    ? isMarketOpen
+                      ? 'REAL-TIME 60s ENGINE'
+                      : 'WEEKEND PREP • REAL OHLC'
                     : 'RECONNECTING...'}
                 </span>
               </div>
@@ -221,7 +222,7 @@ export default function App() {
               onClick={handleManualRefresh}
               disabled={isRefreshing}
               className="pressable w-8 h-8 rounded-xl bg-[#13131A] border border-[rgba(255,255,255,0.12)] flex items-center justify-center text-white hover:border-[#FF6B00]"
-              title="Refresh Quotes Now"
+              title="Refresh Scan Now"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-[#FF6B00]' : 'text-white'}`} />
             </button>
@@ -245,30 +246,103 @@ export default function App() {
       {/* Main Tab Views */}
       <main className="flex-1 max-w-lg w-full mx-auto p-4 space-y-4">
         {/* ========================================================= */}
-        {/* REAL MARKET SESSION BANNER (WEEKEND PAUSE NOTIFICATION) */}
+        {/* WEEKEND STATUS NOTIFICATION */}
         {/* ========================================================= */}
         {!isMarketOpen && (
-          <div className="bg-[#13131A] border border-[rgba(255,149,0,0.4)] rounded-2xl p-3.5 space-y-2 glow-orange-sm">
+          <div className="bg-[#13131A] border border-[rgba(255,107,0,0.4)] rounded-2xl p-3.5 space-y-2 glow-orange-sm">
             <div className="flex items-center justify-between">
-              <span className="font-orbitron text-xs font-bold text-[#FF9500] flex items-center gap-1.5">
-                <Moon className="w-4 h-4 text-[#FF9500]" />
-                WEEKEND MARKET PAUSE (FOREX CLOSED)
+              <span className="font-orbitron text-xs font-bold text-[#FF6B00] flex items-center gap-1.5">
+                <Moon className="w-4 h-4 text-[#FF6B00]" />
+                WEEKEND PRE-MARKET ANALYSIS
               </span>
-              <span className="font-orbitron text-[10px] text-white bg-[#0E0E14] px-2 py-0.5 rounded border border-[rgba(255,255,255,0.1)]">
-                VERIFIED REAL PRICES
+              <span className="font-orbitron text-[9px] text-white bg-[#0E0E14] px-2 py-0.5 rounded border border-[rgba(255,255,255,0.1)]">
+                REAL OHLC DATA
               </span>
             </div>
 
             <p className="text-xs text-[#B6B4C2] leading-relaxed">
-              Global Forex & Gold markets are closed on weekends. Prices shown are the{' '}
-              <strong className="text-white font-mono">official Friday market close quotes</strong>.
-              Signals are strictly held at <strong className="text-[#FF9500]">WAIT</strong> to protect trading capital against market open gaps.
+              Forex markets are closed until <strong className="text-white">Sunday 21:00 UTC (5 PM EST)</strong>. The scanner has analyzed the official Friday closing candles to compute the highest-probability setups ready for market open.
             </p>
+          </div>
+        )}
 
-            <div className="pt-2 border-t border-[rgba(255,255,255,0.06)] flex items-center justify-between text-xs font-orbitron">
-              <span className="text-[#726E82]">Next Session Open:</span>
-              <span className="text-white font-bold">
-                {scannerState?.market_session?.reopen_time || 'Sunday 21:00 UTC (5 PM EST)'}
+        {/* ========================================================= */}
+        {/* #1 BEST ACTIONABLE SETUP SPOTLIGHT */}
+        {/* ========================================================= */}
+        {bestSetup && (
+          <div
+            onClick={() => {
+              triggerHaptic('light');
+              setSelectedSignal(bestSetup);
+            }}
+            className="pressable bg-gradient-to-br from-[#1C150E] to-[#13131A] border-2 border-[#FF6B00] rounded-2xl p-4 cursor-pointer relative overflow-hidden glow-orange shadow-2xl space-y-3"
+          >
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Star className="w-3.5 h-3.5 text-[#FF6B00] fill-[#FF6B00]" />
+                  <span className="font-orbitron text-[10px] font-black uppercase tracking-widest text-[#FF6B00]">
+                    TOP CONFLUENCE SETUP
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-orbitron text-xl font-black text-white tracking-wider">
+                    {bestSetup.symbol}
+                  </span>
+                  <span
+                    className={`font-orbitron text-xs font-black px-2.5 py-0.5 rounded-lg flex items-center gap-1 ${
+                      bestSetup.direction === 'BUY'
+                        ? 'bg-[rgba(16,185,129,0.2)] text-[#10B981] border border-[rgba(16,185,129,0.4)]'
+                        : bestSetup.direction === 'SELL'
+                        ? 'bg-[rgba(239,68,68,0.2)] text-[#EF4444] border border-[rgba(239,68,68,0.4)]'
+                        : 'bg-[#0E0E14] text-[#FF9500]'
+                    }`}
+                  >
+                    {bestSetup.direction === 'BUY' && <TrendingUp className="w-3.5 h-3.5" />}
+                    {bestSetup.direction === 'SELL' && <TrendingDown className="w-3.5 h-3.5" />}
+                    <span>{bestSetup.direction}</span>
+                  </span>
+                </div>
+              </div>
+
+              <div className="text-right">
+                <span className="font-orbitron text-[9px] uppercase tracking-wider text-[#B6B4C2] block">
+                  Confluence
+                </span>
+                <span className="font-orbitron text-2xl font-black text-[#FF6B00] tracking-tight">
+                  {bestSetup.confidence}%
+                </span>
+              </div>
+            </div>
+
+            {/* Quick Metrics Bar */}
+            <div className="p-2.5 rounded-xl bg-[#07070A]/80 border border-[rgba(255,107,0,0.3)] grid grid-cols-3 gap-2 text-xs">
+              <div>
+                <span className="text-[9px] text-[#726E82] uppercase block">Entry Range</span>
+                <span className="font-orbitron text-xs font-bold text-white truncate block">
+                  {bestSetup.entry_zone ? bestSetup.entry_zone.display : 'Market Execution'}
+                </span>
+              </div>
+              <div>
+                <span className="text-[9px] text-[#726E82] uppercase block">Stop Loss</span>
+                <span className="font-orbitron text-xs font-bold text-[#EF4444] truncate block">
+                  {bestSetup.stop_loss ?? '—'}
+                </span>
+              </div>
+              <div>
+                <span className="text-[9px] text-[#726E82] uppercase block">Target TP1</span>
+                <span className="font-orbitron text-xs font-bold text-[#10B981] truncate block">
+                  {bestSetup.take_profit_1 ?? '—'}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-1 text-xs">
+              <span className="text-[#B6B4C2] truncate max-w-[240px]">
+                {bestSetup.reason[0]}
+              </span>
+              <span className="font-orbitron text-[10px] font-bold text-[#FF6B00] flex items-center gap-1">
+                <span>INSPECT ORDER &rarr;</span>
               </span>
             </div>
           </div>
@@ -279,20 +353,19 @@ export default function App() {
         {/* ========================================================= */}
         {activeTab === 'home' && (
           <div className="space-y-4 animate-in fade-in duration-150">
-            {/* Header Status Bar */}
             <div className="flex items-baseline justify-between pt-1">
               <div>
-                <h1 className="font-orbitron text-lg font-black tracking-wider text-white">
-                  5-PAIR REAL-TIME RADAR
+                <h1 className="font-orbitron text-base font-black tracking-wider text-white">
+                  5-PAIR SCANNER FEED
                 </h1>
                 <p className="text-xs text-[#B6B4C2]">
-                  {isMarketOpen ? 'Live Market Feed Active' : 'Official Friday Closing Quotes'}
+                  Real-time multi-timeframe analysis across H1, M15, M5
                 </p>
               </div>
 
               <div className="text-right">
                 <span className="font-orbitron text-[9px] uppercase tracking-wider text-[#726E82] block">
-                  Next Scan
+                  Scan Interval
                 </span>
                 <span className="font-orbitron text-xs font-bold text-[#FF6B00]">
                   {scannerState ? `${scannerState.next_scan_seconds}s` : '—'}
@@ -361,7 +434,7 @@ export default function App() {
                         </div>
 
                         <span className="font-orbitron text-[10px] text-[#B6B4C2]">
-                          {!isMarketOpen ? 'FRIDAY CLOSE' : `${sig.confidence}% Conviction`}
+                          {sig.confidence}% Conviction
                         </span>
                       </div>
                     </div>
@@ -369,9 +442,7 @@ export default function App() {
                     {/* Bottom Technical Snippet */}
                     <div className="mt-2.5 pt-2 border-t border-[rgba(255,255,255,0.06)] flex items-center justify-between text-xs text-[#B6B4C2]">
                       <span className="truncate max-w-[240px]">
-                        {!isMarketOpen
-                          ? `Official Friday close: ${sig.current_price.toFixed(dec)}`
-                          : sig.reason[0] || 'Technical structure synchronized'}
+                        {sig.reason[0] || 'Technical structure synchronized'}
                       </span>
                       <span className="text-[#FF6B00] font-orbitron font-bold text-[10px] flex items-center gap-0.5 shrink-0">
                         <span>INSPECT</span>
@@ -435,7 +506,7 @@ export default function App() {
                           })}
                         </div>
                         <span className="font-orbitron text-[10px] text-[#FF6B00]">
-                          {!isMarketOpen ? 'FRIDAY CLOSE' : `${sig.direction} • ${sig.confidence}%`}
+                          {sig.direction} • {sig.confidence}%
                         </span>
                       </div>
                     </div>
@@ -481,7 +552,7 @@ export default function App() {
                   SIGNALS FEED
                 </h1>
                 <p className="text-xs text-[#B6B4C2]">
-                  {isMarketOpen ? 'Live Market Recommendations' : 'Weekend Capital Protection Active'}
+                  {isMarketOpen ? 'Live Market Recommendations' : 'Pre-Market Confluence Setups'}
                 </p>
               </div>
 
@@ -539,13 +610,13 @@ export default function App() {
                           </span>
                         </div>
                         <span className="text-[10px] text-[#726E82]">
-                          {!isMarketOpen ? 'Session: Weekend Pause' : `Generated ${getRelativeTime(sig.created_at)}`}
+                          Generated {getRelativeTime(sig.created_at)}
                         </span>
                       </div>
 
                       <div className="text-right">
                         <span className="font-orbitron text-xs font-bold text-[#FF6B00]">
-                          {!isMarketOpen ? 'FRIDAY CLOSE' : `${sig.confidence}%`}
+                          {sig.confidence}%
                         </span>
                         <span className="font-orbitron text-[9px] text-[#726E82] block">{sig.status}</span>
                       </div>
@@ -554,21 +625,21 @@ export default function App() {
                     {/* Entry & Targets Strip */}
                     <div className="p-2.5 rounded-xl bg-[#0E0E14] border border-[rgba(255,255,255,0.06)] grid grid-cols-3 gap-2 text-xs">
                       <div>
-                        <span className="text-[10px] text-[#726E82] block">Verified Price</span>
+                        <span className="text-[10px] text-[#726E82] block">Entry</span>
                         <span className="font-orbitron text-white font-semibold truncate block">
-                          {sig.current_price}
+                          {sig.entry_zone ? sig.entry_zone.display : 'Market Execution'}
                         </span>
                       </div>
                       <div>
-                        <span className="text-[10px] text-[#726E82] block">Status</span>
-                        <span className="font-orbitron text-[#FF9500] font-semibold truncate block">
-                          {sig.status}
+                        <span className="text-[10px] text-[#726E82] block">Stop Loss</span>
+                        <span className="font-orbitron text-[#EF4444] font-semibold truncate block">
+                          {sig.stop_loss ?? '—'}
                         </span>
                       </div>
                       <div>
-                        <span className="text-[10px] text-[#726E82] block">Action</span>
-                        <span className="font-orbitron text-white font-semibold truncate block">
-                          {sig.direction}
+                        <span className="text-[10px] text-[#726E82] block">Target TP1</span>
+                        <span className="font-orbitron text-[#10B981] font-semibold truncate block">
+                          {sig.take_profit_1 ?? '—'}
                         </span>
                       </div>
                     </div>
@@ -587,7 +658,7 @@ export default function App() {
         )}
 
         {/* ========================================================= */}
-        {/* TAB 4: CONFIGURATION & RENDER DEPLOYMENT AS WEB SERVICE */}
+        {/* TAB 4: CONFIGURATION & RENDER DEPLOYMENT AS NODE WEB SERVICE */}
         {/* ========================================================= */}
         {activeTab === 'settings' && (
           <div className="space-y-4 animate-in fade-in duration-150">
@@ -596,34 +667,35 @@ export default function App() {
                 RENDER WEB SERVICE CONFIG
               </h1>
               <p className="text-xs text-[#B6B4C2]">
-                Zero-cost 24/7 autonomous deployment instructions
+                Configure as a Node.js full-stack web service
               </p>
             </div>
 
-            {/* Render Deployment Ready Card */}
+            {/* Render Node Web Service Card */}
             <div className="bg-[#13131A] border border-[rgba(255,107,0,0.35)] rounded-2xl p-4 space-y-3 glow-orange-sm">
               <span className="font-orbitron text-xs font-bold uppercase tracking-wider text-white flex items-center gap-1.5">
                 <Server className="w-4 h-4 text-[#FF6B00]" />
-                Deploy to Render as a Web Service
+                Deploy on Render as Node Service
               </span>
 
               <div className="space-y-2 text-xs text-[#B6B4C2]">
                 <p>
-                  This repo contains all verified Python files for Render:
+                  To display this complete Web UI on Render (instead of raw JSON), configure the Render Web Service settings:
                 </p>
                 <div className="p-2.5 rounded-xl bg-[#0E0E14] font-mono text-white text-[11px] space-y-1">
-                  <div><strong>Build Command:</strong> <span className="text-[#FF6B00]">pip install -r requirements.txt</span></div>
-                  <div><strong>Start Command:</strong> <span className="text-[#FF6B00]">uvicorn main:app --host 0.0.0.0 --port $PORT</span></div>
-                  <div><strong>Health Check:</strong> <span className="text-[#FF6B00]">/health</span></div>
+                  <div><strong>Environment:</strong> <span className="text-[#FF6B00]">Node</span></div>
+                  <div><strong>Build Command:</strong> <span className="text-[#FF6B00]">npm install && npm run build</span></div>
+                  <div><strong>Start Command:</strong> <span className="text-[#FF6B00]">npm start</span></div>
+                  <div><strong>Health Check Path:</strong> <span className="text-[#FF6B00]">/health</span></div>
                 </div>
 
                 <div className="p-2.5 rounded-xl bg-[#0E0E14] border border-[rgba(255,255,255,0.06)] text-[11px] space-y-1">
-                  <span className="text-white font-bold block">5-Minute External Keep-Alive Cron:</span>
+                  <span className="text-white font-bold block">Keep-Alive Cron URL:</span>
                   <p>
-                    Set a free monitor on <strong>Cron-Job.org</strong> to ping:
+                    Ping this URL every 5 minutes on Cron-Job.org to keep Render free tier awake:
                   </p>
                   <code className="text-[#FF6B00] block text-[10px]">
-                    https://&lt;your-render-app&gt;.onrender.com/health
+                    https://orion-ye9g.onrender.com/health
                   </code>
                 </div>
               </div>
@@ -637,7 +709,7 @@ export default function App() {
               <div className="flex gap-2">
                 <input
                   type="text"
-                  placeholder="https://your-bot.onrender.com"
+                  placeholder="https://orion-ye9g.onrender.com"
                   value={customUrlInput}
                   onChange={(e) => setCustomUrlInput(e.target.value)}
                   className="flex-1 px-3 py-2 rounded-xl bg-[#0E0E14] border border-[rgba(255,255,255,0.08)] text-xs text-white placeholder-[#726E82] focus:outline-none focus:border-[#FF6B00]"
