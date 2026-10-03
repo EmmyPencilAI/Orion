@@ -1,0 +1,101 @@
+@import "tailwindcss";
+
+:root {
+  --font-orbitron: 'Orbitron', -apple-system, sans-serif;
+  --font-rajdhani: 'Rajdhani', -apple-system, sans-serif;
+
+  /* Institutional Orange & White Palette */
+  --bg-primary: #07070A;
+  --bg-secondary: #0E0E14;
+  --bg-card: #13131A;
+  --bg-card-hover: #181824;
+  --bg-card-subtle: #1C1C28;
+
+  --accent-orange: #FF6B00;
+  --accent-orange-bright: #FF8533;
+  --accent-orange-glow: rgba(255, 107, 0, 0.22);
+  --accent-orange-subtle: rgba(255, 107, 0, 0.12);
+
+  --text-white: #FFFFFF;
+  --text-secondary: #B6B4C2;
+  --text-muted: #726E82;
+
+  --signal-buy: #10B981;
+  --signal-buy-bg: rgba(16, 185, 129, 0.14);
+  --signal-sell: #EF4444;
+  --signal-sell-bg: rgba(239, 68, 68, 0.14);
+  --signal-wait: #FF9500;
+  --signal-wait-bg: rgba(255, 149, 0, 0.12);
+
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-card: rgba(255, 255, 255, 0.10);
+  --border-orange: rgba(255, 107, 0, 0.35);
+  --border-orange-bright: rgba(255, 107, 0, 0.85);
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-white);
+  font-family: var(--font-rajdhani), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  user-select: none;
+  overscroll-behavior-y: contain;
+  margin: 0;
+  padding: 0;
+  letter-spacing: 0.015em;
+}
+
+/* Orbitron Typography Utility */
+.font-orbitron {
+  font-family: 'Orbitron', monospace, sans-serif;
+  letter-spacing: 0.04em;
+}
+
+.font-tech {
+  font-family: 'Rajdhani', -apple-system, sans-serif;
+}
+
+/* Orange Glow Accents */
+.glow-orange {
+  box-shadow: 0 0 25px rgba(255, 107, 0, 0.28);
+}
+
+.glow-orange-sm {
+  box-shadow: 0 0 12px rgba(255, 107, 0, 0.22);
+}
+
+.border-orange-glow {
+  border-color: rgba(255, 107, 0, 0.45);
+  box-shadow: inset 0 0 10px rgba(255, 107, 0, 0.12);
+}
+
+/* Android safe-area insets */
+.safe-top {
+  padding-top: max(env(safe-area-inset-top, 0px), 12px);
+}
+
+.safe-bottom {
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 16px);
+}
+
+/* Hide scrollbar for mobile clean look */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Active touch feedback */
+.pressable {
+  transition: transform 0.12s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.12s ease;
+}
+.pressable:active {
+  transform: scale(0.975);
+  opacity: 0.9;
+}

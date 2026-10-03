@@ -1,0 +1,6 @@
+{
+  "name": "MT5 SIGNAL BOT",
+  "description": "Deterministic Forex & Gold Multi-Timeframe Signal Engine for XAUUSD and USDJPY with automated background scanner and REST API.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
