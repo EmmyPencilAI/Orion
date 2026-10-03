@@ -7,21 +7,31 @@ It features an institutional **Orange & White** terminal aesthetic with **Orbitr
 
 ---
 
-## 🚀 How to Deploy on Render as a Node Web Service
+## 🚀 Render Deployment (Node.js Web Service)
 
-When deploying on Render, configure it as a **Node** environment so that accessing your URL (e.g. `https://orion-ye9g.onrender.com/`) opens the complete **Orange & White Web Interface**, while all background scanning and API routes continue running 24/7.
+### Root Cause of the Previous ERESOLVE Build Failure
+In the previous commit, `esbuild` was explicitly pinned to `"^0.25.0"` in `devDependencies`, which conflicted with `vite@8.3.2` requiring `esbuild@^0.27.0 || ^0.28.0`. This caused `npm install` to abort with error code `ERESOLVE`.
 
-### Render Settings:
+### The Resolution Applied:
+1. Removed the conflicting explicit `esbuild` pin from `package.json` (Vite and TSX manage their required esbuild versions automatically).
+2. Moved `tsx` to production `dependencies` so it remains available in production container builds.
+3. Updated the build command in `render.yaml` to `npm install --legacy-peer-deps && npm run build`.
+
+---
+
+### Render Settings
+
+In your **Render Dashboard** for `orion-ye9g`:
 
 | Setting | Value |
 |---|---|
 | **Environment** | `Node` |
-| **Build Command** | `npm install && npm run build` |
+| **Build Command** | `npm install --legacy-peer-deps && npm run build` |
 | **Start Command** | `npm start` |
 | **Health Check Path** | `/health` |
 | **Auto-Deploy** | `Yes` |
 
-### Environment Variables on Render:
+#### Environment Variables on Render:
 - `NODE_VERSION`: `20`
 - `NODE_ENV`: `production`
 
@@ -29,7 +39,7 @@ When deploying on Render, configure it as a **Node** environment so that accessi
 
 ## ⚡ What Makes It Real
 
-1. **Real-Time Market Data Feeds (No Fake Prices)**:
+1. **Real-Time Market Data Feeds**:
    - Scans actual OHLC candle feeds for all 5 pairs:
      - **XAUUSD** (Spot Gold / USD) — 2 decimals
      - **USDJPY** (US Dollar / Japanese Yen) — 3 decimals
@@ -63,16 +73,3 @@ When deploying on Render, configure it as a **Node** environment so that accessi
 - `GET /signals/:symbol`: Analysis for specified symbol (`XAUUSD`, `USDJPY`, `EURUSD`, `GBPUSD`, `USDCAD`).
 - `GET /api/best-setup`: The #1 highest-conviction setup across all pairs.
 - `POST /api/scan-now`: Trigger instant re-scan.
-
----
-
-## ⏰ Keep-Alive Cron Setup (Free Tier 24/7)
-
-To keep your Render service active 24/7 on the free tier:
-1. Go to [Cron-Job.org](https://cron-job.org).
-2. Create a cron job running every 5 minutes (`*/5 * * * *`).
-3. Set the target URL:
-   ```
-   https://orion-ye9g.onrender.com/health
-   ```
-This pings `/health` without consuming heavy scan resources and keeps the web service online.
